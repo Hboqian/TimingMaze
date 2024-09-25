@@ -94,7 +94,8 @@ class Player:
         self.waited = 0
         self.escaping = False
         self.escape_route = deque([])
-
+        self.find_nearest = False
+        self.nearest_unexp = [0,0]
         self.reset_counter = 0
 
     class Corner:
@@ -492,6 +493,28 @@ class Player:
             # print("I am out of checking moves")
             self.move_regrets[tuple(self.cur_pos)] = move_regret
 
+            if self.find_nearest:
+                nearest_unvisited, _ = self.find_closest_unvisited()
+                if nearest_unvisited:
+                    cur_x, cur_y = self.cur_pos
+                    target_x, target_y = nearest_unvisited
+                    move_regret = [0, 0, 0, 0] 
+
+                    if target_x < cur_x:
+                        # Nearest point is to the left
+                        move_regret[constants.LEFT] = float('-inf')
+                    elif target_x > cur_x:
+                        # Nearest point is to the right
+                        move_regret[constants.RIGHT] = float('-inf')
+                    if target_y < cur_y:
+                        # Nearest point is down
+                        move_regret[constants.DOWN] = float('-inf')
+                    elif target_y > cur_y:
+                        # Nearest point is above
+                        move_regret[constants.UP] = float('-inf')
+
+                    self.move_regrets[tuple(self.cur_pos)] = move_regret
+
             sorted_move_regret = sorted(range(len(move_regret)), key=lambda k : move_regret[k]) # Sorts the move regrets. Resulting values of result are the DIRECTIONS in ascending order.
             # print("After sorting")
             for move in sorted_move_regret:
@@ -639,3 +662,35 @@ class Player:
                     heapq.heappush(queue, (new_steps_in_dijkstras, neighbor))
 
         return
+    
+    def find_closest_unvisited(self):
+        """
+        Returns:
+            tuple: The (x,y) of nearest point
+                   Returns (None, None) if all points are visited.
+        """
+        current_pos = tuple(self.cur_pos)  # Get the current position
+        visited_set = set(self.past_coords)  # Convert past_coords to a set for faster lookup
+        
+        min_distance = float('inf')
+        nearest_point = None
+        # Determine the coordinate bounds based on known visited points and curr pos
+        min_x = min(current_pos[0], *[coord[0] for coord in visited_set]) - 1
+        max_x = max(current_pos[0], *[coord[0] for coord in visited_set]) + 1
+        min_y = min(current_pos[1], *[coord[1] for coord in visited_set]) - 1
+        max_y = max(current_pos[1], *[coord[1] for coord in visited_set]) + 1
+        # Iterate over grid
+        for x in range(min_x, max_x + 1):
+            for y in range(min_y, max_y + 1):
+                point = (x, y)
+                # Check if the point is unvisited
+                if point not in visited_set:
+                    # Calculate Manhattan distance
+                    distance = abs(current_pos[0] - x) + abs(current_pos[1] - y)           
+                    # Check if this point is closer than the current nearest point
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest_point = point
+        
+        self.nearest_unexp = nearest_point
+        return nearest_point, min_distance if nearest_point else (None, None)
